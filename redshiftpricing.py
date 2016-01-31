@@ -38,6 +38,7 @@ REDSHIFT_REGIONS = [
 	"ap-southeast-1",
 	"ap-southeast-2",
 	"ap-northeast-1",
+	"ap-northeast-2",
 	"sa-east-1"
 ]
 
@@ -56,7 +57,7 @@ JSON_NAME_TO_REGIONS_API = {
 	"us-gov-west-1" : "us-gov-west-1",
 	"eu-ireland" : "eu-west-1",
 	"eu-west-1" : "eu-west-1",
-    "eu-frankfurt" : "eu-central-1",
+	"eu-frankfurt" : "eu-central-1",
 	"eu-central-1" : "eu-central-1",
 	"apac-sin" : "ap-southeast-1",
 	"ap-southeast-1" : "ap-southeast-1",
@@ -64,12 +65,16 @@ JSON_NAME_TO_REGIONS_API = {
 	"apac-syd" : "ap-southeast-2",
 	"apac-tokyo" : "ap-northeast-1",
 	"ap-northeast-1" : "ap-northeast-1",
+	"ap-northeast-2" : "ap-northeast-2",
 	"sa-east-1" : "sa-east-1"
 }
 
 REDSHIFT_ONDEMAND_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-on-demand-redshift-instances.min.js"
-REDSHIFT_1Y_HEAVY_UTILIZATION_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-one-year-heavy-reserved-instances.min.js"
-REDSHIFT_3Y_HEAVY_UTILIZATION_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-three-years-heavy-reserved-instances.min.js"
+REDSHIFT_ONDEMAND_PREVIOUS_URL = "http://a0.awsstatic.com/pricing/1/redshift/previous-generation/pricing-on-demand-redshift-instances.min.js"
+REDSHIFT_RESERVED_V2_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-reserved-redshift-instances.min.js"
+REDSHIFT_RESERVED_PREVIOIUS_V2_URL = "http://a0.awsstatic.com/pricing/1/redshift/previous-generation/pricing-reserved-redshift-instances.min.js"
+REDSHIFT_1Y_HEAVY_RESERVATION_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-one-year-heavy-reserved-instances.min.js"
+REDSHIFT_3Y_HEAVY_RESERVATION_URL = "http://a0.awsstatic.com/pricing/1/redshift/pricing-three-years-heavy-reserved-instances.min.js"
 
 DEFAULT_CURRENCY = "USD"
 
@@ -94,8 +99,11 @@ def get_redshift_reserved_instances_prices(filter_region=None, filter_instance_t
 	currency = DEFAULT_CURRENCY
 
 	urls = [
-		REDSHIFT_1Y_HEAVY_UTILIZATION_URL,
-		REDSHIFT_3Y_HEAVY_UTILIZATION_URL
+		REDSHIFT_1Y_HEAVY_RESERVATION_URL,
+		REDSHIFT_3Y_HEAVY_RESERVATION_URL,
+		
+		REDSHIFT_RESERVED_V2_URL,
+		REDSHIFT_RESERVED_PREVIOIUS_V2_URL
 	]
 
 	result_regions = []
@@ -127,6 +135,7 @@ def get_redshift_reserved_instances_prices(filter_region=None, filter_instance_t
 						
 					if "instanceTypes" in r:
 						for it in r["instanceTypes"]:
+							# old style reserved instances
 							if "tiers" in it:
 								for s in it["tiers"]:
 									_type = s["size"]
@@ -142,7 +151,7 @@ def get_redshift_reserved_instances_prices(filter_region=None, filter_instance_t
 	
 									instance_types.append({
 										"type" : _type,
-										"utilization" : "heavy",
+										"reservation" : "heavy",
 										"prices" : prices
 									})
 	
@@ -163,6 +172,33 @@ def get_redshift_reserved_instances_prices(filter_region=None, filter_instance_t
 											prices["term"] = "3year"
 										elif price_data["name"] == "yrTerm3Hourly":
 											prices["hourly"] = price
+							
+							# new ri types
+							if "type" in it and "terms" in it:
+								_type = it["type"]
+								if get_specific_instance_type and _type != filter_instance_type:
+										continue
+								for term in it["terms"]:
+									for purchaseOpt in term["purchaseOptions"]:
+										upfront = ""
+										hourly = ""
+										prices = {}
+										for price_data in purchaseOpt["valueColumns"]:
+											if price_data["name"] == "upfront":
+												upfront = (price_data["prices"]["USD"]).replace(",", "")
+											if price_data["name"] == "monthlyStar":
+												hourly = "%.3f" % (float(str.replace(price_data["prices"]["USD"],",","")) * 12 / 365 / 24)
+										prices["upfront"] = upfront
+										prices["hourly"] = hourly
+										if term["term"] == "yrTerm1":
+											prices["term"] = "1year"
+										if term["term"] == "yrTerm3":
+											prices["term"] = "3year"
+										instance_types.append({
+													"type" : _type,
+													"reservation" : purchaseOpt["purchaseOption"],
+													"prices" : prices
+												})
 
 	return result
 
@@ -186,7 +222,8 @@ def get_redshift_ondemand_instances_prices(filter_region=None, filter_instance_t
 	}
 	
 	urls = [
-		REDSHIFT_ONDEMAND_URL
+		REDSHIFT_ONDEMAND_URL,
+		REDSHIFT_ONDEMAND_PREVIOUS_URL,
 	]
 
 	for u in urls:
@@ -227,6 +264,8 @@ def get_redshift_ondemand_instances_prices(filter_region=None, filter_instance_t
 
 if __name__ == "__main__":
 	def none_as_string(v):
+		if v == 0:
+			return "0"
 		if not v:
 			return ""
 		else:
@@ -284,9 +323,9 @@ if __name__ == "__main__":
 					x.add_row([region_name, it["type"], none_as_string(it["price"])])
 		elif args.type == "reserved":
 			try:
-				x.set_field_names(["region", "type", "utilization", "term", "price", "upfront"])
+				x.set_field_names(["region", "type", "reservation", "term", "price", "upfront"])
 			except AttributeError:
-				x.field_names = ["region", "type", "utilization", "term", "price", "upfront"]
+				x.field_names = ["region", "type", "reservation", "term", "price", "upfront"]
 
 			try:
 				x.aligns[-1] = "l"
@@ -298,7 +337,7 @@ if __name__ == "__main__":
 			for r in data["regions"]:
 				region_name = r["region"]
 				for it in r["instanceTypes"]:
-					x.add_row([region_name, it["type"], it["utilization"], it["prices"]["term"], none_as_string(it["prices"]["hourly"]), none_as_string(it["prices"]["upfront"])])
+					x.add_row([region_name, it["type"], it["reservation"], it["prices"]["term"], none_as_string(it["prices"]["hourly"]), none_as_string(it["prices"]["upfront"])])
 		
 		print x
 	elif args.format == "csv":
@@ -309,9 +348,9 @@ if __name__ == "__main__":
 				for it in r["instanceTypes"]:
 					print "%s,%s,%s" % (region_name, it["type"], none_as_string(it["price"]))
 		elif args.type == "reserved":
-					print "region,type,utilization,term,price,upfront"
+					print "region,type,reservation,term,price,upfront"
 					for r in data["regions"]:
 						region_name = r["region"]
 						for it in r["instanceTypes"]:
 							for term in it["prices"]:
-								print "%s,%s,%s,%s,%s,%s" % (region_name, it["type"], it["utilization"], it["prices"]["term"], none_as_string(it["prices"]["hourly"]), none_as_string(it["prices"]["upfront"]))
+								print "%s,%s,%s,%s,%s,%s" % (region_name, it["type"], it["reservation"], it["prices"]["term"], none_as_string(it["prices"]["hourly"]), none_as_string(it["prices"]["upfront"]))
