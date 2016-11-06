@@ -31,6 +31,7 @@ except ImportError:
 
 REDSHIFT_REGIONS = [
 	"us-east-1",
+	"us-east-2",
 	"us-west-2",
 	"us-gov-west-1",
 	"eu-west-1",
@@ -39,6 +40,7 @@ REDSHIFT_REGIONS = [
 	"ap-southeast-2",
 	"ap-northeast-1",
 	"ap-northeast-2",
+	"ap-south-1",
 	"sa-east-1"
 ]
 
@@ -47,10 +49,17 @@ REDSHIFT_INSTANCE_TYPES = [
 	"dw1.8xlarge",
 	"dw2.xlarge",
 	"dw2.8xlarge",
+	"ds1.xlarge",
+	"ds1.8xlarge",
+	"ds2.xlarge",
+	"ds2.8xlarge",
+	"dc1.large",
+	"dc1.8xlarge"
 ]
 JSON_NAME_TO_REGIONS_API = {
 	"us-east" : "us-east-1",
 	"us-east-1" : "us-east-1",
+	"us-east-2" : "us-east-2",
 	"us-west" : "us-west-1",
 	"us-west-1" : "us-west-1",
 	"us-west-2" : "us-west-2",
@@ -66,6 +75,7 @@ JSON_NAME_TO_REGIONS_API = {
 	"apac-tokyo" : "ap-northeast-1",
 	"ap-northeast-1" : "ap-northeast-1",
 	"ap-northeast-2" : "ap-northeast-2",
+	"ap-south-1" : "ap-south-1",
 	"sa-east-1" : "sa-east-1"
 }
 
